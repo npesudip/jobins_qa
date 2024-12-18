@@ -1,0 +1,10 @@
+run test via terminal 
+
+pytest --html=report.html --capture=tee-sys
+
+--html --> for generating html report
+--capture --> capture additional informations 
+
+
+pytest tests/ --html=reports/report.html --self-contained-html
+

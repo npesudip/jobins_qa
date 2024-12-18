@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>report.html</title>
+    <style>body {
+  font-family: Helvetica, Arial, sans-serif;
+  font-size: 12px;
+  /* do not increase min-width as some may use split screens */
+  min-width: 800px;
+  color: #999;
+}
+
+h1 {
+  font-size: 24px;
+  color: black;
+}
+
+h2 {
+  font-size: 16px;
+  color: black;
+}
+
+p {
+  color: black;
+}
+
+a {
+  color: #999;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+/******************************
+ * SUMMARY INFORMATION
+ ******************************/
+#environment td {
+  padding: 5px;
+  border: 1px solid #E6E6E6;
+}
+#environment tr:nth-child(odd) {
+  background-color: #f6f6f6;
+}
+
+/******************************
+ * TEST RESULT COLORS
+ ******************************/
+span.passed,
+.passed .col-result {
+  color: green;
+}
+
+span.skipped,
+span.xfailed,
+span.rerun,
+.skipped .col-result,
+.xfailed .col-result,
+.rerun .col-result {
+  color: orange;
+}
+
+span.error,
+span.failed,
+span.xpassed,
+.error .col-result,
+.failed .col-result,
+.xpassed .col-result {
+  color: red;
+}
+
+/******************************
+ * RESULTS TABLE
+ *
+ * 1. Table Layout
+ * 2. Extra
+ * 3. Sorting items
+ *
+ ******************************/
+/*------------------
+ * 1. Table Layout
+ *------------------*/
+#results-table {
+  border: 1px solid #e6e6e6;
+  color: #999;
+  font-size: 12px;
+  width: 100%;
+}
+#results-table th,
+#results-table td {
+  padding: 5px;
+  border: 1px solid #E6E6E6;
+  text-align: left;
+}
+#results-table th {
+  font-weight: bold;
+}
+
+/*------------------
+ * 2. Extra
+ *------------------*/
+.log {
+  background-color: #e6e6e6;
+  border: 1px solid #e6e6e6;
+  color: black;
+  display: block;
+  font-family: "Courier New", Courier, monospace;
+  height: 230px;
+  overflow-y: scroll;
+  padding: 5px;
+  white-space: pre-wrap;
+}
+.log:only-child {
+  height: inherit;
+}
+
+div.image {
+  border: 1px solid #e6e6e6;
+  float: right;
+  height: 240px;
+  margin-left: 5px;
+  overflow: hidden;
+  width: 320px;
+}
+div.image img {
+  width: 320px;
+}
+
+div.video {
+  border: 1px solid #e6e6e6;
+  float: right;
+  height: 240px;
+  margin-left: 5px;
+  overflow: hidden;
+  width: 320px;
+}
+div.video video {
+  overflow: hidden;
+  width: 320px;
+  height: 240px;
+}
+
+.collapsed {
+  display: none;
+}
+
+.expander::after {
+  content: " (show details)";
+  color: #BBB;
+  font-style: italic;
+  cursor: pointer;
+}
+
+.collapser::after {
+  content: " (hide details)";
+  color: #BBB;
+  font-style: italic;
+  cursor: pointer;
+}
+
+/*------------------
+ * 3. Sorting items
+ *------------------*/
+.sortable {
+  cursor: pointer;
+}
+
+.sort-icon {
+  font-size: 0px;
+  float: left;
+  margin-right: 5px;
+  margin-top: 5px;
+  /*triangle*/
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+}
+.inactive .sort-icon {
+  /*finish triangle*/
+  border-top: 8px solid #E6E6E6;
+}
+.asc.active .sort-icon {
+  /*finish triangle*/
+  border-bottom: 8px solid #999;
+}
+.desc.active .sort-icon {
+  /*finish triangle*/
+  border-top: 8px solid #999;
+}
+</style></head>
+  <body onLoad="init()">
+    <script>/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+function toArray(iter) {
+    if (iter === null) {
+        return null;
+    }
+    return Array.prototype.slice.call(iter);
+}
+
+function find(selector, elem) { // eslint-disable-line no-redeclare
+    if (!elem) {
+        elem = document;
+    }
+    return elem.querySelector(selector);
+}
+
+function findAll(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return toArray(elem.querySelectorAll(selector));
+}
+
+function sortColumn(elem) {
+    toggleSortStates(elem);
+    const colIndex = toArray(elem.parentNode.childNodes).indexOf(elem);
+    let key;
+    if (elem.classList.contains('result')) {
+        key = keyResult;
+    } else if (elem.classList.contains('links')) {
+        key = keyLink;
+    } else {
+        key = keyAlpha;
+    }
+    sortTable(elem, key(colIndex));
+}
+
+function showAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(showExtras);
+}
+
+function hideAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(hideExtras);
+}
+
+function showExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.remove('collapsed');
+    expandcollapse.classList.remove('expander');
+    expandcollapse.classList.add('collapser');
+}
+
+function hideExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.add('collapsed');
+    expandcollapse.classList.remove('collapser');
+    expandcollapse.classList.add('expander');
+}
+
+function showFilters() {
+    let visibleString = getQueryParameter('visible') || 'all';
+    visibleString = visibleString.toLowerCase();
+    const checkedItems = visibleString.split(',');
+
+    const filterItems = document.getElementsByClassName('filter');
+    for (let i = 0; i < filterItems.length; i++) {
+        filterItems[i].hidden = false;
+
+        if (visibleString != 'all') {
+            filterItems[i].checked = checkedItems.includes(filterItems[i].getAttribute('data-test-result'));
+            filterTable(filterItems[i]);
+        }
+    }
+}
+
+function addCollapse() {
+    // Add links for show/hide all
+    const resulttable = find('table#results-table');
+    const showhideall = document.createElement('p');
+    showhideall.innerHTML = '<a href="javascript:showAllExtras()">Show all details</a> / ' +
+                            '<a href="javascript:hideAllExtras()">Hide all details</a>';
+    resulttable.parentElement.insertBefore(showhideall, resulttable);
+
+    // Add show/hide link to each result
+    findAll('.col-result').forEach(function(elem) {
+        const collapsed = getQueryParameter('collapsed') || 'Passed';
+        const extras = elem.parentNode.nextElementSibling;
+        const expandcollapse = document.createElement('span');
+        if (extras.classList.contains('collapsed')) {
+            expandcollapse.classList.add('expander');
+        } else if (collapsed.includes(elem.innerHTML)) {
+            extras.classList.add('collapsed');
+            expandcollapse.classList.add('expander');
+        } else {
+            expandcollapse.classList.add('collapser');
+        }
+        elem.appendChild(expandcollapse);
+
+        elem.addEventListener('click', function(event) {
+            if (event.currentTarget.parentNode.nextElementSibling.classList.contains('collapsed')) {
+                showExtras(event.currentTarget);
+            } else {
+                hideExtras(event.currentTarget);
+            }
+        });
+    });
+}
+
+function getQueryParameter(name) {
+    const match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+    return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
+}
+
+function init () { // eslint-disable-line no-unused-vars
+    resetSortHeaders();
+
+    addCollapse();
+
+    showFilters();
+
+    sortColumn(find('.initial-sort'));
+
+    findAll('.sortable').forEach(function(elem) {
+        elem.addEventListener('click',
+            function() {
+                sortColumn(elem);
+            }, false);
+    });
+}
+
+function sortTable(clicked, keyFunc) {
+    const rows = findAll('.results-table-row');
+    const reversed = !clicked.classList.contains('asc');
+    const sortedRows = sort(rows, keyFunc, reversed);
+    /* Whole table is removed here because browsers acts much slower
+     * when appending existing elements.
+     */
+    const thead = document.getElementById('results-table-head');
+    document.getElementById('results-table').remove();
+    const parent = document.createElement('table');
+    parent.id = 'results-table';
+    parent.appendChild(thead);
+    sortedRows.forEach(function(elem) {
+        parent.appendChild(elem);
+    });
+    document.getElementsByTagName('BODY')[0].appendChild(parent);
+}
+
+function sort(items, keyFunc, reversed) {
+    const sortArray = items.map(function(item, i) {
+        return [keyFunc(item), i];
+    });
+
+    sortArray.sort(function(a, b) {
+        const keyA = a[0];
+        const keyB = b[0];
+
+        if (keyA == keyB) return 0;
+
+        if (reversed) {
+            return keyA < keyB ? 1 : -1;
+        } else {
+            return keyA > keyB ? 1 : -1;
+        }
+    });
+
+    return sortArray.map(function(item) {
+        const index = item[1];
+        return items[index];
+    });
+}
+
+function keyAlpha(colIndex) {
+    return function(elem) {
+        return elem.childNodes[1].childNodes[colIndex].firstChild.data.toLowerCase();
+    };
+}
+
+function keyLink(colIndex) {
+    return function(elem) {
+        const dataCell = elem.childNodes[1].childNodes[colIndex].firstChild;
+        return dataCell == null ? '' : dataCell.innerText.toLowerCase();
+    };
+}
+
+function keyResult(colIndex) {
+    return function(elem) {
+        const strings = ['Error', 'Failed', 'Rerun', 'XFailed', 'XPassed',
+            'Skipped', 'Passed'];
+        return strings.indexOf(elem.childNodes[1].childNodes[colIndex].firstChild.data);
+    };
+}
+
+function resetSortHeaders() {
+    findAll('.sort-icon').forEach(function(elem) {
+        elem.parentNode.removeChild(elem);
+    });
+    findAll('.sortable').forEach(function(elem) {
+        const icon = document.createElement('div');
+        icon.className = 'sort-icon';
+        icon.textContent = 'vvv';
+        elem.insertBefore(icon, elem.firstChild);
+        elem.classList.remove('desc', 'active');
+        elem.classList.add('asc', 'inactive');
+    });
+}
+
+function toggleSortStates(elem) {
+    //if active, toggle between asc and desc
+    if (elem.classList.contains('active')) {
+        elem.classList.toggle('asc');
+        elem.classList.toggle('desc');
+    }
+
+    //if inactive, reset all other functions and add ascending active
+    if (elem.classList.contains('inactive')) {
+        resetSortHeaders();
+        elem.classList.remove('inactive');
+        elem.classList.add('active');
+    }
+}
+
+function isAllRowsHidden(value) {
+    return value.hidden == false;
+}
+
+function filterTable(elem) { // eslint-disable-line no-unused-vars
+    const outcomeAtt = 'data-test-result';
+    const outcome = elem.getAttribute(outcomeAtt);
+    const classOutcome = outcome + ' results-table-row';
+    const outcomeRows = document.getElementsByClassName(classOutcome);
+
+    for(let i = 0; i < outcomeRows.length; i++){
+        outcomeRows[i].hidden = !elem.checked;
+    }
+
+    const rows = findAll('.results-table-row').filter(isAllRowsHidden);
+    const allRowsHidden = rows.length == 0 ? true : false;
+    const notFoundMessage = document.getElementById('not-found-message');
+    notFoundMessage.hidden = !allRowsHidden;
+}
+</script>
+    <h1>report.html</h1>
+    <p>Report generated on 18-Dec-2024 at 20:29:42 by <a href="https://pypi.python.org/pypi/pytest-html">pytest-html</a> v3.2.0</p>
+    <h2>Summary</h2>
+    <p>14 tests ran in 152.93 seconds. </p>
+    <p class="filter" hidden="true">(Un)check the boxes to filter the results.</p><input checked="true" class="filter" data-test-result="passed" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="passed">10 passed</span>, <input checked="true" class="filter" data-test-result="skipped" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="skipped">0 skipped</span>, <input checked="true" class="filter" data-test-result="failed" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="failed">4 failed</span>, <input checked="true" class="filter" data-test-result="error" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="error">0 errors</span>, <input checked="true" class="filter" data-test-result="xfailed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xfailed">0 expected failures</span>, <input checked="true" class="filter" data-test-result="xpassed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xpassed">0 unexpected passes</span>
+    <h2>Results</h2>
+    <table id="results-table">
+      <thead id="results-table-head">
+        <tr>
+          <th class="sortable result initial-sort" col="result">Result</th>
+          <th class="sortable" col="name">Test</th>
+          <th class="sortable" col="duration">Duration</th>
+          <th class="sortable links" col="links">Links</th></tr>
+        <tr hidden="true" id="not-found-message">
+          <th colspan="4">No results found. Try to check the filters</th></tr></thead>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">tests/test_carrier.py::TestCarrierSection::test_carrier_new_graduate_filter</td>
+          <td class="col-duration">2.21</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">self = &lt;pages.carrier_page.CarrierPageObjects object at 0x1091cb510&gt;<br/>xpath = &quot;//button[contains(@id, &#x27;radix-&#x27;) and contains(@id, &#x27;-trigger-&#x27;) and contains(@aria-controls, &#x27;新卒採用&#x27;) and @role=&#x27;tab&#x27;]&quot;, element_name = &#x27;New Graduate&#x27;<br/><br/>    def _scroll_and_click(self, xpath, element_name):<br/>        &quot;&quot;&quot;Scroll to an element and click on it.&quot;&quot;&quot;<br/>        print(f&quot;Scrolling to and trying to click on: {element_name} using XPath: {xpath}&quot;)<br/>        try:<br/>            # Wait for the element to be present and visible<br/>            element = WebDriverWait(self.driver, 20).until(<br/>                EC.visibility_of_element_located((By.XPATH, xpath))<br/>            )<br/>            # Scroll the element into view<br/>            self.driver.execute_script(&quot;arguments[0].scrollIntoView(true);&quot;, element)<br/>            time.sleep(1)  # Allow scrolling animation to complete<br/>    <br/>            # Slightly scroll up to avoid sticky headers<br/>            self.driver.execute_script(&quot;window.scrollBy(0, -100);&quot;)<br/>    <br/>            # Wait until the element is clickable and click it<br/>&gt;           WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable((By.XPATH, xpath))).click()<br/><br/>pages/carrier_page.py:84: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/>.venv/lib/python3.11/site-packages/selenium/webdriver/remote/webelement.py:93: in click<br/>    self._execute(Command.CLICK_ELEMENT)<br/>.venv/lib/python3.11/site-packages/selenium/webdriver/remote/webelement.py:394: in _execute<br/>    return self._parent.execute(command, params)<br/>.venv/lib/python3.11/site-packages/selenium/webdriver/remote/webdriver.py:344: in execute<br/>    self.error_handler.check_response(response)<br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;selenium.webdriver.remote.errorhandler.ErrorHandler object at 0x109205210&gt;<br/>response = {&#x27;status&#x27;: 400, &#x27;value&#x27;: &#x27;{&quot;value&quot;:{&quot;error&quot;:&quot;element click intercepted&quot;,&quot;message&quot;:&quot;element click intercepted: Element ...ff81a8d01d3 _pthread_start + 125\\n26  libsystem_pthread.dylib             0x00007ff81a8cbbd3 thread_start + 15\\n&quot;}}&#x27;}<br/><br/>    def check_response(self, response: Dict[str, Any]) -&gt; None:<br/>        &quot;&quot;&quot;Checks that a JSON response from the WebDriver does not have an<br/>        error.<br/>    <br/>        :Args:<br/>         - response - The JSON response from the WebDriver server as a dictionary<br/>           object.<br/>    <br/>        :Raises: If the response contains an error message.<br/>        &quot;&quot;&quot;<br/>        status = response.get(&quot;status&quot;, None)<br/>        if not status or status == ErrorCode.SUCCESS:<br/>            return<br/>        value = None<br/>        message = response.get(&quot;message&quot;, &quot;&quot;)<br/>        screen: str = response.get(&quot;screen&quot;, &quot;&quot;)<br/>        stacktrace = None<br/>        if isinstance(status, int):<br/>            value_json = response.get(&quot;value&quot;, None)<br/>            if value_json and isinstance(value_json, str):<br/>                import json<br/>    <br/>                try:<br/>                    value = json.loads(value_json)<br/>                    if len(value) == 1:<br/>                        value = value[&quot;value&quot;]<br/>                    status = value.get(&quot;error&quot;, None)<br/>                    if not status:<br/>                        status = value.get(&quot;status&quot;, ErrorCode.UNKNOWN_ERROR)<br/>                        message = value.get(&quot;value&quot;) or value.get(&quot;message&quot;)<br/>                        if not isinstance(message, str):<br/>                            value = message<br/>                            message = message.get(&quot;message&quot;)<br/>                    else:<br/>                        message = value.get(&quot;message&quot;, None)<br/>                except ValueError:<br/>                    pass<br/>    <br/>        exception_class: Type[WebDriverException]<br/>        e = ErrorCode()<br/>        error_codes = [item for item in dir(e) if not item.startswith(&quot;__&quot;)]<br/>        for error_code in error_codes:<br/>            error_info = getattr(ErrorCode, error_code)<br/>            if isinstance(error_info, list) and status in error_info:<br/>                exception_class = getattr(ExceptionMapping, error_code, WebDriverException)<br/>                break<br/>        else:<br/>            exception_class = WebDriverException<br/>    <br/>        if not value:<br/>            value = response[&quot;value&quot;]<br/>        if isinstance(value, str):<br/>            raise exception_class(value)<br/>        if message == &quot;&quot; and &quot;message&quot; in value:<br/>            message = value[&quot;message&quot;]<br/>    <br/>        screen = None  # type: ignore[assignment]<br/>        if &quot;screen&quot; in value:<br/>            screen = value[&quot;screen&quot;]<br/>    <br/>        stacktrace = None<br/>        st_value = value.get(&quot;stackTrace&quot;) or value.get(&quot;stacktrace&quot;)<br/>        if st_value:<br/>            if isinstance(st_value, str):<br/>                stacktrace = st_value.split(&quot;\n&quot;)<br/>            else:<br/>                stacktrace = []<br/>                try:<br/>                    for frame in st_value:<br/>                        line = frame.get(&quot;lineNumber&quot;, &quot;&quot;)<br/>                        file = frame.get(&quot;fileName&quot;, &quot;&lt;anonymous&gt;&quot;)<br/>                        if line:<br/>                            file = f&quot;{file}:{line}&quot;<br/>                        meth = frame.get(&quot;methodName&quot;, &quot;&lt;anonymous&gt;&quot;)<br/>                        if &quot;className&quot; in frame:<br/>                            meth = f&quot;{frame[&#x27;className&#x27;]}.{meth}&quot;<br/>                        msg = &quot;    at %s (%s)&quot;<br/>                        msg = msg % (meth, file)<br/>                        stacktrace.append(msg)<br/>                except TypeError:<br/>                    pass<br/>        if exception_class == UnexpectedAlertPresentException:<br/>            alert_text = None<br/>            if &quot;data&quot; in value:<br/>                alert_text = value[&quot;data&quot;].get(&quot;text&quot;)<br/>            elif &quot;alert&quot; in value:<br/>                alert_text = value[&quot;alert&quot;].get(&quot;text&quot;)<br/>            raise exception_class(message, screen, stacktrace, alert_text)  # type: ignore[call-arg]  # mypy is not smart enough here<br/>&gt;       raise exception_class(message, screen, stacktrace)<br/><span class="error">E       selenium.common.exceptions.ElementClickInterceptedException: Message: element click intercepted: Element &lt;button type=&quot;button&quot; role=&quot;tab&quot; aria-selected=&quot;false&quot; aria-controls=&quot;radix-:R157qja:-content-...&quot; data-state=&quot;inactive&quot; id=&quot;radix-:R157qja:-trigger-新卒採用&quot; class=&quot;justify-center whitespace-nowrap bg-transparent inline-flex items-center text-xs md:text-sm rounded-full border-2 border-white min-w-[112px] h-10 py-3 px-4 lg:px-7 text-white transition-all duration-300 data-[state=active]:border-transparent data-[state=active]:text-white data-[state=active]:font-bold data-[state=active]:bg-[linear-gradient(95.9deg,#37B7F1_-33.74%,#72CDCD_98.6%)] ring-0 ring-offset-0 hover:data-[state=inactive]:bg-secondary focus:outline-none focus-visible:!ring-0 focus-visible:!ring-offset-0&quot; tabindex=&quot;-1&quot; data-orientation=&quot;horizontal&quot; data-radix-collection-item=&quot;&quot;&gt;新卒採用&lt;/button&gt; is not clickable at point (490, 120). Other element would receive the click: &lt;div class=&quot;flex flex-1 items-center justify-end gap-2 sm:gap-8&quot;&gt;...&lt;/div&gt;</span><br/><span class="error">E         (Session info: chrome=131.0.6778.140)</span><br/><span class="error">E       Stacktrace:</span><br/><span class="error">E       0   chromedriver                        0x0000000108144e12 chromedriver + 6696466</span><br/><span class="error">E       1   chromedriver                        0x000000010813cc2a chromedriver + 6663210</span><br/><span class="error">E       2   chromedriver                        0x0000000107b44e3e chromedriver + 405054</span><br/><span class="error">E       3   chromedriver                        0x0000000107b9cfa5 chromedriver + 765861</span><br/><span class="error">E       4   chromedriver                        0x0000000107b9add8 chromedriver + 757208</span><br/><span class="error">E       5   chromedriver                        0x0000000107b97f15 chromedriver + 745237</span><br/><span class="error">E       6   chromedriver                        0x0000000107b97118 chromedriver + 741656</span><br/><span class="error">E       7   chromedriver                        0x0000000107b898c3 chromedriver + 686275</span><br/><span class="error">E       8   chromedriver                        0x0000000107bba872 chromedriver + 886898</span><br/><span class="error">E       9   chromedriver                        0x0000000107b891c8 chromedriver + 684488</span><br/><span class="error">E       10  chromedriver                        0x0000000107bbaa2e chromedriver + 887342</span><br/><span class="error">E       11  chromedriver                        0x0000000107bdd3f4 chromedriver + 1029108</span><br/><span class="error">E       12  chromedriver                        0x0000000107bba613 chromedriver + 886291</span><br/><span class="error">E       13  chromedriver                        0x0000000107b87950 chromedriver + 678224</span><br/><span class="error">E       14  chromedriver                        0x0000000107b8834e chromedriver + 680782</span><br/><span class="error">E       15  chromedriver                        0x0000000108112700 chromedriver + 6489856</span><br/><span class="error">E       16  chromedriver                        0x00000001081151a9 chromedriver + 6500777</span><br/><span class="error">E       17  chromedriver                        0x0000000108114ccb chromedriver + 6499531</span><br/><span class="error">E       18  chromedriver                        0x0000000108115635 chromedriver + 6501941</span><br/><span class="error">E       19  chromedriver                        0x00000001080fd4b4 chromedriver + 6403252</span><br/><span class="error">E       20  chromedriver                        0x000000010811591f chromedriver + 6502687</span><br/><span class="error">E       21  chromedriver                        0x00000001080ee8e4 chromedriver + 6342884</span><br/><span class="error">E       22  chromedriver                        0x000000010812d308 chromedriver + 6599432</span><br/><span class="error">E       23  chromedriver                        0x000000010812d4c5 chromedriver + 6599877</span><br/><span class="error">E       24  chromedriver                        0x000000010813c7f8 chromedriver + 6662136</span><br/><span class="error">E       25  libsystem_pthread.dylib             0x00007ff81a8d01d3 _pthread_start + 125</span><br/><span class="error">E       26  libsystem_pthread.dylib             0x00007ff81a8cbbd3 thread_start + 15</span><br/><br/>.venv/lib/python3.11/site-packages/selenium/webdriver/remote/errorhandler.py:229: ElementClickInterceptedException<br/><br/>During handling of the above exception, another exception occurred:<br/><br/>self = &lt;test_carrier.TestCarrierSection object at 0x108601890&gt;, carrier_page = &lt;pages.carrier_page.CarrierPageObjects object at 0x1091cb510&gt;<br/><br/>    def test_carrier_new_graduate_filter(self, carrier_page):<br/>        &quot;&quot;&quot;Test if the new graduate filter displays correct job listings.&quot;&quot;&quot;<br/>&gt;       carrier_page.click_filter_carrier_new_graduate_tab()<br/><br/>tests/test_carrier.py:56: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/>pages/carrier_page.py:56: in click_filter_carrier_new_graduate_tab<br/>    self._scroll_and_click(self.carrier_new_graduate_xp, &quot;New Graduate&quot;)<br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;pages.carrier_page.CarrierPageObjects object at 0x1091cb510&gt;<br/>xpath = &quot;//button[contains(@id, &#x27;radix-&#x27;) and contains(@id, &#x27;-trigger-&#x27;) and contains(@aria-controls, &#x27;新卒採用&#x27;) and @role=&#x27;tab&#x27;]&quot;, element_name = &#x27;New Graduate&#x27;<br/><br/>    def _scroll_and_click(self, xpath, element_name):<br/>        &quot;&quot;&quot;Scroll to an element and click on it.&quot;&quot;&quot;<br/>        print(f&quot;Scrolling to and trying to click on: {element_name} using XPath: {xpath}&quot;)<br/>        try:<br/>            # Wait for the element to be present and visible<br/>            element = WebDriverWait(self.driver, 20).until(<br/>                EC.visibility_of_element_located((By.XPATH, xpath))<br/>            )<br/>            # Scroll the element into view<br/>            self.driver.execute_script(&quot;arguments[0].scrollIntoView(true);&quot;, element)<br/>            time.sleep(1)  # Allow scrolling animation to complete<br/>    <br/>            # Slightly scroll up to avoid sticky headers<br/>            self.driver.execute_script(&quot;window.scrollBy(0, -100);&quot;)<br/>    <br/>            # Wait until the element is clickable and click it<br/>            WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable((By.XPATH, xpath))).click()<br/>            print(f&quot;Successfully clicked on &#x27;{element_name}&#x27;.&quot;)<br/>    <br/>            # Verify the page has loaded after the click<br/>            self._check_if_page_loaded()<br/>    <br/>&gt;       except TimeoutException:<br/><span class="error">E       NameError: name &#x27;TimeoutException&#x27; is not defined</span><br/><br/>pages/carrier_page.py:90: NameError<br/> ------------------------------Captured stdout call------------------------------ <br/>Scrolling to and trying to click on: New Graduate using XPath: //button[contains(@id, &#x27;radix-&#x27;) and contains(@id, &#x27;-trigger-&#x27;) and contains(@aria-controls, &#x27;新卒採用&#x27;) and @role=&#x27;tab&#x27;]
+<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">tests/test_carrier.py::TestCarrierSection::test_click_filter_carrier_long_term_tab</td>
+          <td class="col-duration">1.22</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">self = &lt;test_carrier.TestCarrierSection object at 0x1091dcb50&gt;, carrier_page = &lt;pages.carrier_page.CarrierPageObjects object at 0x1091cb510&gt;<br/><br/>    def test_click_filter_carrier_long_term_tab(self, carrier_page):<br/>        &quot;&quot;&quot;Test if the long term internship filter displays correct job listings.&quot;&quot;&quot;<br/>        carrier_page.click_filter_carrier_long_term_tab()<br/>    <br/>        # Assert the job listings are displayed<br/>        job_blocks = carrier_page.get_job_blocks()  # Assuming this method returns the list of job blocks<br/>        assert len(job_blocks) &gt; 0, &quot;No job listings found after applying long-term internship filter.&quot;<br/>    <br/>        # Verify that each job block contains relevant keywords for long-term internships<br/>        for job in job_blocks:<br/>            # Check for terms that represent long-term internships in the job text<br/>&gt;           assert &quot;Long-term intern&quot; in job.text or &quot;長期インターン&quot; in job.text or &quot;Long Term Internship&quot; in job.text, \<br/>                f&quot;Job block {job.text} does not match expected categories for long-term internships.&quot;<br/><span class="error">E           AssertionError: Job block システムエンジニア</span><br/><span class="error">E             正社員</span><br/><span class="error">E             応募する does not match expected categories for long-term internships.</span><br/><span class="error">E           assert (&#x27;Long-term intern&#x27; in &#x27;システムエンジニア\n正社員\n応募する&#x27; or &#x27;長期インターン&#x27; in &#x27;システムエンジニア\n正社員\n応募する&#x27; or &#x27;Long Term Internship&#x27; in &#x27;システムエンジニア\n正社員\n応募する&#x27;)</span><br/><span class="error">E            +  where &#x27;システムエンジニア\n正社員\n応募する&#x27; = &lt;selenium.webdriver.remote.webelement.WebElement (session=&quot;2ba8a3a62dd0cc9086cbfc76db3157ef&quot;, element=&quot;f.CA7CA193653F9BCCC7ABB61B5CA87986.d.30EFEC6A4A999193852F19565B45BF7F.e.20&quot;)&gt;.text</span><br/><span class="error">E            +  and   &#x27;システムエンジニア\n正社員\n応募する&#x27; = &lt;selenium.webdriver.remote.webelement.WebElement (session=&quot;2ba8a3a62dd0cc9086cbfc76db3157ef&quot;, element=&quot;f.CA7CA193653F9BCCC7ABB61B5CA87986.d.30EFEC6A4A999193852F19565B45BF7F.e.20&quot;)&gt;.text</span><br/><span class="error">E            +  and   &#x27;システムエンジニア\n正社員\n応募する&#x27; = &lt;selenium.webdriver.remote.webelement.WebElement (session=&quot;2ba8a3a62dd0cc9086cbfc76db3157ef&quot;, element=&quot;f.CA7CA193653F9BCCC7ABB61B5CA87986.d.30EFEC6A4A999193852F19565B45BF7F.e.20&quot;)&gt;.text</span><br/><br/>tests/test_carrier.py:79: AssertionError<br/> ------------------------------Captured stdout call------------------------------ <br/>Scrolling to and trying to click on: Long Term Internship using XPath: //button[contains(@id, &#x27;radix-&#x27;) and contains(@id, &#x27;-trigger-&#x27;) and contains(@aria-controls, &#x27;長期インターン採用&#x27;) and @role=&#x27;tab&#x27;]
+Successfully clicked on &#x27;Long Term Internship&#x27;.
+Page has successfully loaded.
+<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">tests/test_carrier.py::TestCarrierSection::test_job_board_link</td>
+          <td class="col-duration">12.73</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">self = &lt;test_carrier.TestCarrierSection object at 0x1091dd350&gt;, carrier_page = &lt;pages.carrier_page.CarrierPageObjects object at 0x1091cb510&gt;<br/><br/>    def test_job_board_link(self, carrier_page):<br/>        &quot;&quot;&quot;Test if job board link is clickable and navigates to the correct page.&quot;&quot;&quot;<br/>        carrier_page.click_job_board()<br/>&gt;       WebDriverWait(carrier_page.driver, 10).until(<br/>            EC.url_contains(&quot;JV&quot;)  # Updated condition<br/>        )<br/><br/>tests/test_carrier.py:86: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;selenium.webdriver.support.wait.WebDriverWait (session=&quot;2ba8a3a62dd0cc9086cbfc76db3157ef&quot;)&gt;, method = &lt;function url_contains.&lt;locals&gt;._predicate at 0x1092c8400&gt;, message = &#x27;&#x27;<br/><br/>    def until(self, method, message: str = &quot;&quot;):<br/>        &quot;&quot;&quot;Calls the method provided with the driver as an argument until the \<br/>        return value does not evaluate to ``False``.<br/>    <br/>        :param method: callable(WebDriver)<br/>        :param message: optional message for :exc:`TimeoutException`<br/>        :returns: the result of the last call to `method`<br/>        :raises: :exc:`selenium.common.exceptions.TimeoutException` if timeout occurs<br/>        &quot;&quot;&quot;<br/>        screen = None<br/>        stacktrace = None<br/>    <br/>        end_time = time.monotonic() + self._timeout<br/>        while True:<br/>            try:<br/>                value = method(self._driver)<br/>                if value:<br/>                    return value<br/>            except self._ignored_exceptions as exc:<br/>                screen = getattr(exc, &quot;screen&quot;, None)<br/>                stacktrace = getattr(exc, &quot;stacktrace&quot;, None)<br/>            time.sleep(self._poll)<br/>            if time.monotonic() &gt; end_time:<br/>                break<br/>&gt;       raise TimeoutException(message, screen, stacktrace)<br/><span class="error">E       selenium.common.exceptions.TimeoutException: Message:</span><br/><br/>.venv/lib/python3.11/site-packages/selenium/webdriver/support/wait.py:95: TimeoutException<br/> ------------------------------Captured stdout call------------------------------ <br/>Scrolling to and trying to click on: Job board using XPath: //a[contains(@class, &#x27;bg-white&#x27;) and contains(@href, &#x27;/career/&#x27;)]
+Successfully clicked on &#x27;Job board&#x27;.
+Page has successfully loaded.
+<br/> ----------------------------Captured stdout teardown---------------------------- <br/>Closing WebDriver. Title was: 働き方 | Recruit
+<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">tests/test_header.py::TestHeader::test_entry_button</td>
+          <td class="col-duration">26.64</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">self = &lt;test_header.TestHeader object at 0x109213950&gt;, driver = &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;7ec577460f659ed6c696e53579845fb9&quot;)&gt;<br/><br/>    def test_entry_button(self, driver):<br/>        &quot;&quot;&quot;Test Entry button navigation.&quot;&quot;&quot;<br/>        expected_current_page_title =&quot;採用情報 | Recruit&quot;<br/>    <br/>        home_page = HeaderObject(driver)  # Initialize the HomePage object<br/>&gt;       home_page.click_entry_button()  # Clicking Entry button<br/><br/>tests/test_header.py:56: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/>pages/header_page.py:119: in click_entry_button<br/>    WebDriverWait(self.driver, 20).until(EC.url_contains(self.entry_url_keyword))<br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;selenium.webdriver.support.wait.WebDriverWait (session=&quot;7ec577460f659ed6c696e53579845fb9&quot;)&gt;, method = &lt;function url_contains.&lt;locals&gt;._predicate at 0x1092c8ea0&gt;, message = &#x27;&#x27;<br/><br/>    def until(self, method, message: str = &quot;&quot;):<br/>        &quot;&quot;&quot;Calls the method provided with the driver as an argument until the \<br/>        return value does not evaluate to ``False``.<br/>    <br/>        :param method: callable(WebDriver)<br/>        :param message: optional message for :exc:`TimeoutException`<br/>        :returns: the result of the last call to `method`<br/>        :raises: :exc:`selenium.common.exceptions.TimeoutException` if timeout occurs<br/>        &quot;&quot;&quot;<br/>        screen = None<br/>        stacktrace = None<br/>    <br/>        end_time = time.monotonic() + self._timeout<br/>        while True:<br/>            try:<br/>                value = method(self._driver)<br/>                if value:<br/>                    return value<br/>            except self._ignored_exceptions as exc:<br/>                screen = getattr(exc, &quot;screen&quot;, None)<br/>                stacktrace = getattr(exc, &quot;stacktrace&quot;, None)<br/>            time.sleep(self._poll)<br/>            if time.monotonic() &gt; end_time:<br/>                break<br/>&gt;       raise TimeoutException(message, screen, stacktrace)<br/><span class="error">E       selenium.common.exceptions.TimeoutException: Message:</span><br/><br/>.venv/lib/python3.11/site-packages/selenium/webdriver/support/wait.py:95: TimeoutException<br/> ------------------------------Captured stdout call------------------------------ <br/>Trying to locate entry button using locator: //span[contains(@class, &#x27;py-3&#x27;) and text()=&#x27;メンバー紹介&#x27;]
+Locator found: //span[contains(@class, &#x27;py-3&#x27;) and text()=&#x27;メンバー紹介&#x27;]. Button is clickable.
+メンバー紹介 | Recruit
+<br/> ----------------------------Captured stdout teardown---------------------------- <br/>Closing WebDriver. Title was: メンバー紹介 | Recruit
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/test_carrier.py::TestCarrierSection::test_carrier_recruiting_filter</td>
+          <td class="col-duration">20.24</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stdout setup------------------------------ <br/>Loading URL: https://jobins:g4vrh5vo5hqogd0dprfj@recruit.release.jobins.net/
+<br/> ------------------------------Captured stdout call------------------------------ <br/>Scrolling to and trying to click on: Career Opening section using XPath: //h2[normalize-space(text())=&#x27;Career Opening&#x27;]
+Successfully clicked on &#x27;Career Opening section&#x27;.
+Page has successfully loaded.
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/test_faq.py::TestCarrierSection::test_open_faq</td>
+          <td class="col-duration">20.88</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stdout setup------------------------------ <br/>Loading URL: https://jobins:g4vrh5vo5hqogd0dprfj@recruit.release.jobins.net/
+<br/> ------------------------------Captured stdout call------------------------------ <br/>Scrolling to and trying to click on: FAQs section using XPath: //h2[normalize-space(text())=&#x27;FAQs&#x27;]
+Successfully clicked on &#x27;FAQs section&#x27;.
+Page load failed: &#x27;FaqPageObjects&#x27; object has no attribute &#x27;carrier_section_xp&#x27;
+<br/> ----------------------------Captured stdout teardown---------------------------- <br/>Closing WebDriver. Title was: JoBins Recruitment
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/test_footer.py::TestFooterSection::test_wantedly_link</td>
+          <td class="col-duration">20.90</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stdout setup------------------------------ <br/>Loading URL: https://jobins:g4vrh5vo5hqogd0dprfj@recruit.release.jobins.net/
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/test_footer.py::TestFooterSection::test_facebook_link</td>
+          <td class="col-duration">3.29</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ----------------------------Captured stdout teardown---------------------------- <br/>Closing WebDriver. Title was: JoBins Recruitment
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/test_header.py::TestHeader::test_home_menu</td>
+          <td class="col-duration">19.87</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stdout setup------------------------------ <br/>Loading URL: https://jobins:g4vrh5vo5hqogd0dprfj@recruit.release.jobins.net/
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/test_header.py::TestHeader::test_about_menu</td>
+          <td class="col-duration">0.38</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/test_header.py::TestHeader::test_member_menu</td>
+          <td class="col-duration">4.04</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Trying to locate member menu using locator: //span[text()=&#x27;メンバー紹介&#x27;]
+Locator found: //span[text()=&#x27;メンバー紹介&#x27;]. Element is clickable.
+Clicked on the member menu.
+Current URL after click: https://jobins:g4vrh5vo5hqogd0dprfj@recruit.release.jobins.net/team-member
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/test_header.py::TestHeader::test_work_style_menu</td>
+          <td class="col-duration">0.34</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/test_team.py::TestTeamMemberHover::test_hover_effect</td>
+          <td class="col-duration">13.51</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stdout setup------------------------------ <br/>Loading URL: https://jobins:g4vrh5vo5hqogd0dprfj@recruit.release.jobins.net/
+<br/> ------------------------------Captured stdout call------------------------------ <br/>Scrolling to and trying to click on: Team section using XPath: //h2[normalize-space(text())=&#x27;Our Team&#x27;]
+Successfully clicked on &#x27;Team section&#x27;.
+Page load failed: &#x27;TeamMemberPage&#x27; object has no attribute &#x27;carrier_section_xp&#x27;
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/test_team.py::TestTeamMemberHover::test_hover_on_multiple_members</td>
+          <td class="col-duration">2.60</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Scrolling to and trying to click on: Team section using XPath: //h2[normalize-space(text())=&#x27;Our Team&#x27;]
+Successfully clicked on &#x27;Team section&#x27;.
+Page load failed: &#x27;TeamMemberPage&#x27; object has no attribute &#x27;carrier_section_xp&#x27;
+<br/> ----------------------------Captured stdout teardown---------------------------- <br/>Closing WebDriver. Title was: JoBins Recruitment
+<br/></div></td></tr></tbody></table></body></html>

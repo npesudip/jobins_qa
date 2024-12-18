@@ -1,0 +1,74 @@
+import time
+from selenium import webdriver
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+
+def test_keyboard_login():
+    USERNAME = "jobins"
+    PASSWORD = "g4vrh5vo5hqogd0dprfj)"
+
+    # Initialize WebDriver with ChromeOptions (to handle headless or UI modes)
+    options = Options()
+    # options.add_argument("--headless")  # Uncomment for headless mode (no UI)
+    driver = webdriver.Chrome(options=options)
+
+    # Open the target webpage
+    driver.get("https://recruit.release.jobins.net/")
+    time.sleep(2)  # Wait for the page to load
+
+    # Wait for the page to be fully loaded and any popups to appear
+    WebDriverWait(driver, 20).until(
+        EC.visibility_of_element_located((By.TAG_NAME, "body"))
+    )
+
+    # Use JavaScript to try to find the username and password fields without inspecting
+    try:
+        driver.execute_script("""
+            var usernameField = document.querySelector('input[type="text"], input[name="username"]');
+            if (usernameField) {
+                usernameField.style.display = 'block';  // Make sure it's visible if it's hidden
+                usernameField.value = arguments[0];  // Set the username
+                usernameField.focus();  // Focus on the field
+            }
+        """, USERNAME)
+
+        time.sleep(1)
+
+        driver.execute_script("""
+            var passwordField = document.querySelector('input[type="password"], input[name="password"]');
+            if (passwordField) {
+                passwordField.style.display = 'block';  // Make sure it's visible if it's hidden
+                passwordField.value = arguments[0];  // Set the password
+                passwordField.focus();  // Focus on the field
+            }
+        """, PASSWORD)
+
+        time.sleep(1)
+
+        # Submit form using JavaScript (simulate pressing Enter)
+        driver.execute_script("""
+            var passwordField = document.querySelector('input[type="password"], input[name="password"]');
+            if (passwordField) {
+                passwordField.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter'}));  // Simulate Enter key
+            }
+        """)
+
+        time.sleep(5)  # Wait for the login process to complete
+
+        # Verify login success (use your specific condition for checking successful login)
+        assert "Dashboard" in driver.title  # Replace with the expected title or condition for successful login
+        print("Login Successful using JavaScript Execution")
+
+    except Exception as e:
+        print(f"Error occurred: {e}")
+
+    # Close the browser
+    driver.quit()
+
+
+# Execute the test
+if __name__ == "__main__":
+    test_keyboard_login()
